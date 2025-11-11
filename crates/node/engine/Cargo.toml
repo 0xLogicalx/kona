@@ -17,6 +17,7 @@ kona-genesis.workspace = true
 kona-macros.workspace = true
 kona-protocol = {workspace = true, features = ["serde", "std"]}
 kona-sources.workspace = true
+kona-hardforks.workspace = true
 
 # alloy
 alloy-eips.workspace = true
@@ -53,6 +54,7 @@ serde_json.workspace = true
 
 # metrics
 metrics = { workspace = true, optional = true }
+alloy-op-hardforks.workspace = true
 
 [dev-dependencies]
 kona-registry.workspace = true
