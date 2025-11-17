@@ -440,6 +440,7 @@ impl RollupConfig {
         hardforks
     }
 
+    // review: this overlaps a bit with `spec_id`
     /// Return the latest hardfork
     pub fn latest_hardfork(&self, l2_time: u64) -> OpHardfork {
         *self.active_hardforks(l2_time).last().expect("no hardfork active")
