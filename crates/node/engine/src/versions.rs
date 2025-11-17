@@ -12,11 +12,8 @@
 //!
 //! Adapted from the [OP Node version providers](https://github.com/ethereum-optimism/optimism/blob/develop/op-node/rollup/types.go#L546).
 
-use std::{cmp::max, sync::Arc};
-
 use alloy_op_hardforks::OpHardfork;
 use kona_genesis::RollupConfig;
-use kona_hardforks::Hardforks;
 
 /// Engine API version for `engine_forkchoiceUpdated` method calls.
 ///

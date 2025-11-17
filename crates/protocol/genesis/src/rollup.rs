@@ -193,10 +193,11 @@ impl RollupConfig {
 }
 
 impl RollupConfig {
+    /// Always returns true
     pub fn is_bedrock_active(&self, _timestamp: u64) -> bool {
         true
     }
-    // is first
+
     /// Returns true if Regolith is active at the given timestamp.
     pub fn is_regolith_active(&self, timestamp: u64) -> bool {
         self.hardforks.regolith_time.is_some_and(|t| timestamp >= t) ||
@@ -517,7 +518,6 @@ impl OpHardforks for RollupConfig {
                 .interop_time
                 .map(ForkCondition::Timestamp)
                 .unwrap_or(ForkCondition::Never),
-            _ => ForkCondition::Never,
         }
     }
 }
