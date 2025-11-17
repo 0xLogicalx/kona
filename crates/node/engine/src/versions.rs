@@ -66,28 +66,18 @@ impl EngineNewPayloadVersion {
     ///
     /// Uses the [`RollupConfig`] to check which hardfork is active at the given timestamp.
     pub fn from_cfg(cfg: &RollupConfig, timestamp: u64) -> Self {
-        let mut res;
-        if cfg.is_isthmus_active(timestamp) {
-            res = Self::V4
-        } else if cfg.is_ecotone_active(timestamp) {
-            // Cancun
-            res = Self::V3
-        } else {
-            res = Self::V2
-        }
-        res
-
-        // review: is this style more readable?
-        /*
         match cfg.latest_hardfork(timestamp) {
+            OpHardfork::Bedrock => Self::V2,
+            OpHardfork::Regolith => Self::V2,
+            OpHardfork::Canyon => Self::V2,
             OpHardfork::Ecotone => Self::V3,
-            OpHardfork::Fjord => Self::V2,
+            OpHardfork::Fjord => Self::V3,
+            OpHardfork::Granite => Self::V3,
+            OpHardfork::Holocene => Self::V3,
             OpHardfork::Isthmus => Self::V4,
-            OpHardfork::Jovian => Self::V2,
-            OpHardfork::Interop => Self::V2,
-            _ => Self::V2,
+            OpHardfork::Jovian => Self::V4,
+            OpHardfork::Interop => Self::V4,
         }
-        */
     }
 }
 
