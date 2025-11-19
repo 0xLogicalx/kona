@@ -308,6 +308,11 @@ impl SpanBatch {
             if batch.timestamp <= l2_safe_head.block_info.timestamp {
                 continue;
             }
+            // Overlapping span batches can pass the prefix checks but then the
+            // first batch after the safe head has an outdated L1 origin.
+            if batch.epoch_num < l2_safe_head.l1_origin.number {
+                return Err(SpanBatchError::L1OriginBeforeSafeHead);
+            }
             let origin_epoch_hash = l1_origins[origin_index..l1_origins.len()]
                 .iter()
                 .enumerate()
@@ -390,29 +395,47 @@ impl SpanBatch {
         let mut origin_index = 0;
         let mut origin_advanced = starting_epoch_num == parent_block.l1_origin.number + 1;
         for (i, batch) in self.batches.iter().enumerate() {
-            if batch.timestamp <= l2_safe_head.block_info.timestamp {
+            let batch_timestamp = batch.timestamp;
+            let batch_epoch = batch.epoch_num;
+
+            if batch_timestamp <= l2_safe_head.block_info.timestamp {
                 continue;
             }
-            // Find the L1 origin for the batch.
-            for (j, j_block) in l1_blocks.iter().enumerate().skip(origin_index) {
-                if batch.epoch_num == j_block.number {
-                    origin_index = j;
-                    break;
-                }
+            if batch_epoch < l2_safe_head.l1_origin.number {
+                warn!(
+                    target: "batch_span",
+                    "batch L1 origin is before safe head L1 origin, batch_epoch: {}, safe_head_epoch: {:?}",
+                    batch_epoch,
+                    l2_safe_head.l1_origin
+                );
+                return BatchValidity::Drop;
             }
-            let l1_origin = l1_blocks[origin_index];
+
+            // Find the L1 origin for the batch.
+            let Some((offset, l1_origin)) =
+                l1_blocks[origin_index..].iter().enumerate().find(|(_, b)| batch_epoch == b.number)
+            else {
+                warn!(
+                    target: "batch_span",
+                    "unable to find L1 origin for batch, batch_epoch: {}, batch_timestamp: {}",
+                    batch_epoch,
+                    batch_timestamp
+                );
+                return BatchValidity::Drop;
+            };
+            origin_index += offset;
+
             if i > 0 {
                 origin_advanced = false;
-                if batch.epoch_num > self.batches[i - 1].epoch_num {
+                if batch_epoch > self.batches[i - 1].epoch_num {
                     origin_advanced = true;
                 }
             }
-            let block_timestamp = batch.timestamp;
-            if block_timestamp < l1_origin.timestamp {
+            if batch_timestamp < l1_origin.timestamp {
                 warn!(
                     target: "batch_span",
-                    "block timestamp is less than L1 origin timestamp, l2_timestamp: {}, l1_timestamp: {}, origin: {:?}",
-                    block_timestamp,
+                    "batch timestamp is less than L1 origin timestamp, l2_timestamp: {}, l1_timestamp: {}, origin: {:?}",
+                    batch_timestamp,
                     l1_origin.timestamp,
                     l1_origin.id()
                 );
@@ -421,7 +444,7 @@ impl SpanBatch {
 
             // Check if we ran out of sequencer time drift
             let max_drift = cfg.max_sequencer_drift(l1_origin.timestamp);
-            if block_timestamp > l1_origin.timestamp + max_drift {
+            if batch_timestamp > l1_origin.timestamp + max_drift {
                 if batch.transactions.is_empty() {
                     // If the sequencer is co-operating by producing an empty batch,
                     // then allow the batch if it was the right thing to do to maintain the L2 time
@@ -436,7 +459,7 @@ impl SpanBatch {
                             );
                             return BatchValidity::Undecided;
                         }
-                        if block_timestamp >= l1_blocks[origin_index + 1].timestamp {
+                        if batch_timestamp >= l1_blocks[origin_index + 1].timestamp {
                             // check if the next L1 origin could have been adopted
                             info!(
                                 target: "batch_span",
