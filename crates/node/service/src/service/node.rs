@@ -3,8 +3,8 @@ use crate::{
     ConductorClient, DelayedL1OriginSelectorProvider, DerivationActor, DerivationBuilder,
     DerivationContext, EngineActor, EngineConfig, EngineContext, InteropMode, L1OriginSelector,
     L1WatcherRpc, L1WatcherRpcContext, L1WatcherRpcState, NetworkActor, NetworkBuilder,
-    NetworkConfig, NetworkContext, NodeActor, NodeMode, QueuedSequencerAdminAPIClient, RpcActor,
-    RpcContext, SequencerConfig,
+    NetworkConfig, NetworkContext, NodeActor, NodeMode, QueuedSequencerAdminAPIClient,
+    QueuedUnsafePayloadGossipClient, RpcActor, RpcContext, SequencerConfig,
     actors::{
         DerivationInboundChannels, EngineInboundData, L1WatcherRpcInboundChannels,
         NetworkInboundData, SequencerActorBuilder,
@@ -240,7 +240,9 @@ impl RollupNode {
                         .with_attributes_builder(self.create_attributes_builder())
                         .with_block_engine(unwrapped_block_engine)
                         .with_cancellation_token(cancellation.clone())
-                        .with_gossip_payload_sender(gossip_payload_tx.clone())
+                        .with_unsafe_payload_gossip_client(QueuedUnsafePayloadGossipClient::new(
+                            gossip_payload_tx.clone(),
+                        ))
                         .with_origin_selector(origin_selector)
                         .build()
                         .expect("Failed to build SequencerActor"),

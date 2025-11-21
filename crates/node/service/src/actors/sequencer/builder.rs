@@ -1,25 +1,28 @@
 //! Builder for [`SequencerActor`].
 
-use crate::actors::{
-    BlockBuildingClient,
-    sequencer::{Conductor, OriginSelector, SequencerActor, SequencerAdminQuery},
+use crate::{
+    UnsafePayloadGossipClient,
+    actors::{
+        BlockBuildingClient,
+        sequencer::{Conductor, OriginSelector, SequencerActor, SequencerAdminQuery},
+    },
 };
 use kona_derive::AttributesBuilder;
 use kona_genesis::RollupConfig;
 use kona_protocol::L2BlockInfo;
-use op_alloy_rpc_types_engine::OpExecutionPayloadEnvelope;
 use std::sync::Arc;
 use tokio::sync::{mpsc, watch};
 use tokio_util::sync::CancellationToken;
 
 /// Builder for constructing a [`SequencerActor`].
 #[derive(Debug, Default)]
-pub struct SequencerActorBuilder<AB, C, OS, BB>
+pub struct SequencerActorBuilder<AB, BB, C, G, OS>
 where
     AB: AttributesBuilder,
-    C: Conductor,
-    OS: OriginSelector,
     BB: BlockBuildingClient,
+    C: Conductor,
+    G: UnsafePayloadGossipClient,
+    OS: OriginSelector,
 {
     /// Receiver for admin API requests.
     pub admin_api_rx: Option<mpsc::Receiver<SequencerAdminQuery>>,
@@ -31,8 +34,6 @@ where
     pub cancellation_token: Option<CancellationToken>,
     /// The optional conductor RPC client.
     pub conductor: Option<C>,
-    /// A sender to asynchronously sign and gossip built payloads to the network actor.
-    pub gossip_payload_tx: Option<mpsc::Sender<OpExecutionPayloadEnvelope>>,
     /// Whether the sequencer is active.
     pub is_active: Option<bool>,
     /// Whether the sequencer is in recovery mode.
@@ -43,14 +44,17 @@ where
     pub rollup_config: Option<Arc<RollupConfig>>,
     /// Watch channel to observe the unsafe head of the engine.
     pub unsafe_head_rx: Option<watch::Receiver<L2BlockInfo>>,
+    /// A client to asynchronously sign and gossip built payloads to the network actor.
+    pub unsafe_payload_gossip_client: Option<G>,
 }
 
-impl<AB, C, OS, BB> SequencerActorBuilder<AB, C, OS, BB>
+impl<AB, BB, C, G, OS> SequencerActorBuilder<AB, BB, C, G, OS>
 where
     AB: AttributesBuilder,
-    C: Conductor,
-    OS: OriginSelector,
     BB: BlockBuildingClient,
+    C: Conductor,
+    G: UnsafePayloadGossipClient,
+    OS: OriginSelector,
 {
     /// Creates a new empty [`SequencerActorBuilder`].
     pub const fn new() -> Self {
@@ -60,7 +64,7 @@ where
             block_engine: None,
             cancellation_token: None,
             conductor: None,
-            gossip_payload_tx: None,
+            unsafe_payload_gossip_client: None,
             is_active: None,
             in_recovery_mode: None,
             origin_selector: None,
@@ -136,11 +140,8 @@ where
     }
 
     /// Sets the gossip payload sender.
-    pub fn with_gossip_payload_sender(
-        mut self,
-        gossip_payload_tx: mpsc::Sender<OpExecutionPayloadEnvelope>,
-    ) -> Self {
-        self.gossip_payload_tx = Some(gossip_payload_tx);
+    pub fn with_unsafe_payload_gossip_client(mut self, gossip_client: G) -> Self {
+        self.unsafe_payload_gossip_client = Some(gossip_client);
         self
     }
 
@@ -149,19 +150,21 @@ where
     /// # Panics
     ///
     /// Panics if any required field is not set.
-    pub fn build(self) -> Result<SequencerActor<AB, C, OS, BB>, String> {
+    pub fn build(self) -> Result<SequencerActor<AB, BB, C, G, OS>, String> {
         Ok(SequencerActor {
             admin_api_rx: self.admin_api_rx.expect("admin_api_rx is required"),
             attributes_builder: self.attributes_builder.expect("attributes_builder is required"),
             block_engine: self.block_engine.expect("block_engine is required"),
             cancellation_token: self.cancellation_token.expect("cancellation is required"),
             conductor: self.conductor,
-            gossip_payload_tx: self.gossip_payload_tx.expect("gossip_payload_tx is required"),
             is_active: self.is_active.expect("initial active status not set"),
             in_recovery_mode: self.in_recovery_mode.expect("initial recovery mode status not set"),
             origin_selector: self.origin_selector.expect("origin_selector is required"),
             rollup_config: self.rollup_config.expect("rollup_config is required"),
             unsafe_head_rx: self.unsafe_head_rx.expect("unsafe_head_rx is required"),
+            unsafe_payload_gossip_client: self
+                .unsafe_payload_gossip_client
+                .expect("unsafe_payload_gossip_client is required"),
         })
     }
 }
